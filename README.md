@@ -19,22 +19,22 @@ This is the part that saves you days. All of these are listed as supported somew
 | **AutoRound** | MoE-loader bug |
 | **MXFP4** | Listed as a supported format, but **never successfully attempted for Qwen3-VL**. Every MXFP4 reference I could find in the wild refers to InternVL, not Qwen3-VL. Treat as untested, not as working. |
 
-```
-TODO: paste verbatim error output for the Marlin failure and the
-AutoRound MoE-loader traceback here. Error strings are what people
-search for — including them literally is the highest-value addition
-to this file.
-```
+AWQ and GPTQ builds fail at model load — the quantization config resolves to a Marlin kernel, which has no XPU implementation. AutoRound fails separately inside the MoE weight loader. I did not preserve the tracebacks; if you hit these and can paste yours, please open an issue so the error strings are searchable.
 
 **Do not use upstream vLLM.** Its XPU backend handles unquantized FP16 only, which will not fit this model on a 32 GB card. You need Intel's `llm-scaler-vllm` container.
 
 ## What works
 
-FP16 weights + online `sym_int4` quantization.
+Three things in combination:
 
-```bash
-TODO: actual docker run / compose invocation
-```
+1. **Intel's `llm-scaler-vllm` container** — not upstream vLLM.
+2. **FP16 weights** pulled from the standard Hugging Face repo — not a pre-quantized build.
+3. **Online `sym_int4`** quantization applied at load time.
+
+The model is quantized on the way in rather than downloaded pre-quantized. That means pulling the full FP16 weights to disk, but it is the only path that reaches a running server.
+
+<!-- Before publishing: paste your actual docker run / compose invocation below,
+     with host paths and any credentials genericized. -->
 
 ## Measured
 
@@ -47,7 +47,7 @@ TODO: actual docker run / compose invocation
 | Concurrency at 5,120 ctx | **~20x** |
 | Card total | 32 GB |
 
-The vision encoder stays at 16-bit — it is not quantized to int4 with the language weights. That is already included in the 17.3 GB figure.
+The vision encoder stays at 16-bit — it is not quantized to int4 along with the language weights. That is already included in the 17.3 GB figure.
 
 ### Throughput
 
@@ -115,18 +115,17 @@ Listed so nobody mistakes them for answered:
 
 ## Versions
 
-Benchmarks are meaningless unpinned. TODO: fill these in.
+- **Hardware:** Intel Arc Pro B70, 32 GB
+- **Model:** Qwen3-VL-30B-A3B
+- **Frigate:** 0.17.x
 
-| Component | Version |
-|---|---|
-| llm-scaler-vllm | TODO |
-| Model + revision | TODO |
-| GPU driver | TODO |
-| Kernel | TODO |
-| Mesa | TODO |
-| OS | TODO |
-| Frigate | 0.17.TODO |
-| Hardware | Intel Arc Pro B70, 32 GB |
+<!-- Before publishing, add: llm-scaler-vllm container tag, model revision,
+     GPU compute runtime, kernel, Mesa, OS. Grab them with:
+       uname -r
+       cat /etc/os-release
+       docker ps --format '{{.Image}}'
+       dpkg -l | grep -E 'intel-(opencl|level-zero)|libze|mesa'
+     Benchmarks without pinned versions age into misinformation. -->
 
 ## Contributing
 
